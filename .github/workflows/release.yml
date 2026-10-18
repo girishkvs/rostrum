@@ -1,0 +1,149 @@
+# Builds once, publishes to PyPI (trusted publishing, no stored token), attaches the Claude Desktop
+# bundle to the GitHub release, then publishes server.json to the MCP Registry (GitHub OIDC).
+# Runs when a release is published from the maintainer's account, or by hand for an existing tag.
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and publish, e.g. v0.1.0"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+env:
+  TAG: ${{ github.event.release.tag_name || inputs.tag }}
+
+jobs:
+  build:
+    name: Build sdist and wheel
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Tag, version and mcp-name agree
+        id: meta
+        run: |
+          version="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+          if [ "v${version}" != "${TAG}" ]; then
+            echo "::error::tag ${TAG} does not match the pyproject version ${version}"
+            exit 1
+          fi
+          if ! grep -q 'mcp-name: io.github.girishkvs/rostrum' README.md; then
+            echo "::error::README.md lacks the mcp-name line the MCP Registry checks"
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+      - name: Build
+        run: |
+          python -m pip install --upgrade build
+          python -m build
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: pypi
+      url: https://pypi.org/project/rostrum/${{ needs.build.outputs.version }}/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  mcpb:
+    name: Attach the Claude Desktop bundle to the release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "lts/*"
+      - name: Stage the bundle
+        run: |
+          mkdir -p stage/mcpb
+          cp -r pyproject.toml README.md LICENSE src stage/mcpb/
+          cp packaging/mcpb/.mcpbignore stage/mcpb/
+          sed "s/__VERSION__/${VERSION}/g" packaging/mcpb/manifest.json > stage/mcpb/manifest.json
+      - name: Validate and pack
+        run: |
+          npx -y @anthropic-ai/mcpb@2.1.2 validate stage/mcpb/manifest.json
+          npx -y @anthropic-ai/mcpb@2.1.2 pack stage/mcpb "rostrum-${VERSION}.mcpb"
+          sha256sum "rostrum-${VERSION}.mcpb" > SHA256SUMS.txt
+      # Two assets, never one: Gemini CLI would try to unpack a lone asset as the extension.
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${TAG}" "rostrum-${VERSION}.mcpb" SHA256SUMS.txt --clobber --repo "${GITHUB_REPOSITORY}"
+
+  publish-mcp-registry:
+    name: Publish to the MCP Registry
+    needs: [build, publish-pypi]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+      - name: server.json matches the release
+        run: jq -e --arg v "${VERSION}" '.version == $v and all(.packages[]; .version == $v)' server.json
+      # Always the latest mcp-publisher: older builds fail the OIDC login with "invalid audience".
+      - name: Install mcp-publisher
+        run: |
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
+          ./mcp-publisher --version
+      - name: Log in with GitHub OIDC
+        run: ./mcp-publisher login github-oidc
+      # The registry checks pypi.org/pypi/rostrum/<version>/json, which can 404 for a while after the upload.
+      - name: Publish
+        run: |
+          for attempt in 1 2 3 4 5 6; do
+            if ./mcp-publisher publish server.json; then
+              exit 0
+            fi
+            echo "attempt ${attempt} failed; retrying in 30 s"
+            sleep 30
+          done
+          exit 1

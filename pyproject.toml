@@ -1,0 +1,44 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "rostrum"
+version = "0.1.0"
+description = "Clean up talk recordings: find redos, repeats and dead air, review every cut, render and verify."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+authors = [{ name = "Girish Konda" }]
+keywords = ["video", "editing", "talks", "speech-to-text", "ffmpeg", "mcp", "agents"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Topic :: Multimedia :: Video",
+    "Environment :: Console",
+]
+dependencies = [
+    "numpy>=1.26",
+    "jsonschema>=4.21",
+    "psutil>=5.9",
+    "faster-whisper>=1.1",
+    "av<19",
+    "mcp>=2.3,<3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+rostrum = "rostrum.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/girishkvs/rostrum"
+Issues = "https://github.com/girishkvs/rostrum/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/rostrum"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

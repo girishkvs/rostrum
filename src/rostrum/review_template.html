@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>rostrum review · __TITLE__</title>
+<style>
+  :root { --bg: #fff; --fg: #1d1d1f; --muted: #6e6e73; --card: #f5f5f7; --line: #d2d2d7; --cut: #c62828; --keep: #2e7d32; --accent: #0a64d6; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #111; --fg: #f2f2f2; --muted: #a1a1a6; --card: #1c1c1e; --line: #3a3a3c; --cut: #ef5350; --keep: #66bb6a; --accent: #4c9bff; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--fg); }
+  header { position: sticky; top: 0; z-index: 2; background: var(--bg); border-bottom: 1px solid var(--line); padding: 10px 16px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  header h1 { font-size: 16px; margin: 0; }
+  .totals span { margin-right: 14px; }
+  .totals b { font-variant-numeric: tabular-nums; }
+  main { display: grid; grid-template-columns: minmax(320px, 46%) 1fr; gap: 16px; padding: 16px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .player { position: sticky; top: 64px; align-self: start; }
+  video { width: 100%; background: #000; border-radius: 8px; }
+  .now { color: var(--muted); font-variant-numeric: tabular-nums; margin-top: 6px; }
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; align-items: center; }
+  button, select, input { font: inherit; color: inherit; }
+  input, select { background: var(--card); color: var(--fg); border: 1px solid var(--line); border-radius: 4px; padding: 2px 6px; }
+  button { border: 1px solid var(--line); background: var(--card); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .chip { border-radius: 999px; padding: 2px 10px; }
+  .chip.on { border-color: var(--accent); color: var(--accent); }
+  .cards { display: flex; flex-direction: column; gap: 8px; }
+  .card { border: 1px solid var(--line); border-left: 6px solid var(--cut); background: var(--card); border-radius: 8px; padding: 10px 12px; }
+  .card.keep { border-left-color: var(--keep); opacity: .75; }
+  .card.active { outline: 2px solid var(--accent); }
+  .card .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .time { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .badge { font-size: 12px; border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; color: var(--muted); }
+  .badge.propose { color: var(--accent); border-color: var(--accent); }
+  .edited { font-size: 12px; color: var(--accent); }
+  .reason { margin: 6px 0 4px; }
+  .evidence { color: var(--muted); font-style: italic; white-space: pre-wrap; }
+  .spacer { flex: 1; }
+  .decision button.on.cut { background: var(--cut); border-color: var(--cut); color: #fff; }
+  .decision button.on.keep { background: var(--keep); border-color: var(--keep); color: #fff; }
+  .help { color: var(--muted); font-size: 12px; }
+  .note { margin-top: 10px; padding: 8px 10px; border: 1px dashed var(--line); border-radius: 6px; font-size: 12px; color: var(--muted); }
+  code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>rostrum review · <span id="title"></span></h1>
+  <div class="totals">
+    <span>Original <b id="t-original"></b></span>
+    <span>Cut <b id="t-cut"></b></span>
+    <span>Output <b id="t-output"></b></span>
+    <span><b id="t-count"></b> cuts</span>
+  </div>
+  <div class="spacer"></div>
+  <button id="copy-cli" title="Copy changed decisions as rostrum decide commands">Copy as commands</button>
+  <button id="save" class="primary">Save decisions</button>
+</header>
+<main>
+  <section class="player">
+    <video id="player" controls preload="metadata"></video>
+    <div class="now" id="now">—</div>
+    <div class="toolbar">
+      <label>Context <input id="context" type="number" min="0.5" max="15" step="0.5" value="3" style="width:4.5em"> s</label>
+      <label>Nudge <input id="nudge" type="number" min="0.02" max="2" step="0.02" value="0.1" style="width:4.5em"> s</label>
+    </div>
+    <div class="help">Keys: <code>j</code>/<code>k</code> next/previous · <code>space</code> play the join · <code>b</code> before · <code>a</code> after · <code>c</code> the cut part · <code>x</code> toggle keep/cut</div>
+    <div class="note" id="save-note"></div>
+  </section>
+  <section>
+    <div class="toolbar" id="filters"></div>
+    <div class="cards" id="cards"></div>
+  </section>
+</main>
+<script id="data" type="application/json">__DATA__</script>
+<script>
+"use strict";
+const DATA = JSON.parse(document.getElementById("data").textContent);
+const video = document.getElementById("player");
+const state = { decisions: {}, active: 0, filterType: "all", filterLevel: "all", currentSource: -1, stopAt: null, next: null };
+
+for (const cut of DATA.cuts) {
+  state.decisions[cut.id] = { decision: cut.decision, start: cut.start, end: cut.end };
+}
+
+function fmt(seconds) {
+  const sign = seconds < 0 ? "-" : "";
+  const total = Math.abs(seconds);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = (total % 60).toFixed(1).padStart(4, "0");
+  return sign + (h ? h + ":" + String(m).padStart(2, "0") : String(m)) + ":" + s;
+}
+
+function isChanged(cut) {
+  const d = state.decisions[cut.id];
+  return (d.decision !== cut.decision ||
+          Math.abs(d.start - cut.start) > 1e-6 ||
+          Math.abs(d.end - cut.end) > 1e-6);
+}
+
+function cutRanges() {
+  const ranges = DATA.cuts
+    .map(cut => state.decisions[cut.id])
+    .filter(d => d.decision === "cut" && d.end > d.start)
+    .map(d => [d.start, d.end])
+    .sort((a, b) => a[0] - b[0]);
+  const merged = [];
+  for (const range of ranges) {
+    const last = merged[merged.length - 1];
+    if (last && range[0] <= last[1]) {
+      last[1] = Math.max(last[1], range[1]);
+    } else {
+      merged.push([range[0], range[1]]);
+    }
+  }
+  return merged;
+}
+
+function renderTotals() {
+  const cutTotal = cutRanges().reduce((sum, r) => sum + (r[1] - r[0]), 0);
+  const count = DATA.cuts.filter(cut => state.decisions[cut.id].decision === "cut").length;
+  document.getElementById("t-original").textContent = fmt(DATA.duration);
+  document.getElementById("t-cut").textContent = fmt(cutTotal);
+  document.getElementById("t-output").textContent = fmt(DATA.duration - cutTotal);
+  document.getElementById("t-count").textContent = count + " / " + DATA.cuts.length;
+}
+
+function sourceIndexAt(t) {
+  for (let i = DATA.sources.length - 1; i >= 0; i--) {
+    if (t >= DATA.sources[i].offset) {
+      return i;
+    }
+  }
+  return 0;
+}
+
+function seek(t) {
+  const index = sourceIndexAt(t);
+  const source = DATA.sources[index];
+  const local = Math.max(0, t - source.offset);
+  if (index !== state.currentSource) {
+    state.currentSource = index;
+    video.src = source.url;
+    video.addEventListener("loadedmetadata", () => { video.currentTime = local; video.play(); }, { once: true });
+    return;
+  }
+  video.currentTime = local;
+  video.play();
+}
+
+function timelineNow() {
+  if (state.currentSource < 0) {
+    return 0;
+  }
+  return DATA.sources[state.currentSource].offset + video.currentTime;
+}
+
+function watch() {
+  const t = timelineNow();
+  document.getElementById("now").textContent = fmt(t) + (DATA.sources.length > 1 ? "  ·  " + DATA.sources[state.currentSource].name : "");
+  if (state.stopAt !== null && t >= state.stopAt) {
+    if (state.next) {
+      const next = state.next;
+      state.next = null;
+      state.stopAt = next.stop;
+      seek(next.from);
+    } else {
+      state.stopAt = null;
+      video.pause();
+    }
+  }
+}
+
+function playRange(from, to, next) {
+  state.stopAt = to;
+  state.next = next || null;
+  seek(Math.max(0, from));
+}
+
+function context() {
+  return parseFloat(document.getElementById("context").value) || 3;
+}
+
+function play(cut, what) {
+  const d = state.decisions[cut.id];
+  const pad = context();
+  if (what === "before") {
+    playRange(d.start - pad, d.start);
+  } else if (what === "after") {
+    playRange(d.end, d.end + pad);
+  } else if (what === "cut") {
+    playRange(d.start, d.end);
+  } else if (d.decision === "cut") {
+    playRange(d.start - pad, d.start, { from: d.end, stop: d.end + pad });
+  } else {
+    playRange(d.start - pad, d.end + pad);
+  }
+}
+
+function visibleCuts() {
+  return DATA.cuts.filter(cut => {
+    const typeOk = state.filterType === "all" || cut.type === state.filterType;
+    const levelOk = state.filterLevel === "all" || (state.filterLevel === "changed" ? isChanged(cut) : cut.level === state.filterLevel);
+    return typeOk && levelOk;
+  });
+}
+
+function button(label, onClick, extraClass) {
+  const b = document.createElement("button");
+  b.textContent = label;
+  if (extraClass) {
+    b.className = extraClass;
+  }
+  b.addEventListener("click", event => { event.stopPropagation(); onClick(); });
+  return b;
+}
+
+function renderFilters() {
+  const bar = document.getElementById("filters");
+  bar.replaceChildren();
+  const types = ["all", ...new Set(DATA.cuts.map(cut => cut.type))];
+  for (const type of types) {
+    bar.append(button(type, () => { state.filterType = type; renderAll(); }, "chip" + (state.filterType === type ? " on" : "")));
+  }
+  const levels = ["all", "auto", "propose", "changed"];
+  const select = document.createElement("select");
+  for (const level of levels) {
+    const option = document.createElement("option");
+    option.value = level;
+    option.textContent = level === "all" ? "all levels" : level;
+    option.selected = state.filterLevel === level;
+    select.append(option);
+  }
+  select.addEventListener("change", () => { state.filterLevel = select.value; renderAll(); });
+  bar.append(select);
+}
+
+function renderCards() {
+  const list = document.getElementById("cards");
+  list.replaceChildren();
+  const cuts = visibleCuts();
+  cuts.forEach((cut, index) => {
+    const d = state.decisions[cut.id];
+    const card = document.createElement("div");
+    card.className = "card " + d.decision + (index === state.active ? " active" : "");
+    card.addEventListener("click", () => { state.active = index; renderCards(); });
+
+    const head = document.createElement("div");
+    head.className = "row";
+    const time = document.createElement("span");
+    time.className = "time";
+    time.textContent = fmt(d.start) + " → " + fmt(d.end) + "  (" + (d.end - d.start).toFixed(1) + " s)";
+    const type = document.createElement("span");
+    type.className = "badge";
+    type.textContent = cut.type;
+    const level = document.createElement("span");
+    level.className = "badge " + cut.level;
+    level.textContent = cut.level + " · " + Math.round((cut.confidence || 0) * 100) + "%";
+    head.append(time, type, level);
+    if (isChanged(cut)) {
+      const edited = document.createElement("span");
+      edited.className = "edited";
+      edited.textContent = "edited";
+      head.append(edited);
+    }
+    const spacer = document.createElement("span");
+    spacer.className = "spacer";
+    const decision = document.createElement("span");
+    decision.className = "decision";
+    decision.append(
+      button("Cut", () => setDecision(cut, "cut"), "cut" + (d.decision === "cut" ? " on" : "")),
+      button("Keep", () => setDecision(cut, "keep"), "keep" + (d.decision === "keep" ? " on" : "")),
+    );
+    head.append(spacer, decision);
+
+    const reason = document.createElement("div");
+    reason.className = "reason";
+    reason.textContent = cut.reason;
+    const evidence = document.createElement("div");
+    evidence.className = "evidence";
+    evidence.textContent = cut.evidence;
+
+    const controls = document.createElement("div");
+    controls.className = "row";
+    controls.append(
+      button("▶ Join", () => play(cut, "join")),
+      button("Before", () => play(cut, "before")),
+      button("Cut part", () => play(cut, "cut")),
+      button("After", () => play(cut, "after")),
+      button("Start −", () => nudge(cut, "start", -1)),
+      button("Start +", () => nudge(cut, "start", 1)),
+      button("End −", () => nudge(cut, "end", -1)),
+      button("End +", () => nudge(cut, "end", 1)),
+    );
+    if (isChanged(cut)) {
+      controls.append(button("Reset", () => reset(cut)));
+    }
+    card.append(head, reason, evidence, controls);
+    list.append(card);
+  });
+}
+
+function setDecision(cut, value) {
+  state.decisions[cut.id].decision = value;
+  renderAll();
+}
+
+function nudge(cut, edge, direction) {
+  const step = parseFloat(document.getElementById("nudge").value) || 0.1;
+  const d = state.decisions[cut.id];
+  d[edge] = Math.round((d[edge] + direction * step) * 1000) / 1000;
+  if (d.end <= d.start) {
+    d.end = d.start + step;
+  }
+  renderAll();
+}
+
+function reset(cut) {
+  state.decisions[cut.id] = { decision: cut.decision, start: cut.start, end: cut.end };
+  renderAll();
+}
+
+function renderAll() {
+  renderFilters();
+  renderCards();
+  renderTotals();
+}
+
+function changedEntry(cut) {
+  const d = state.decisions[cut.id];
+  const entry = Object.assign({}, DATA.decisions[cut.id] || {});
+  entry.decision = d.decision;
+  entry.decided_by = "user";
+  entry.at = new Date().toISOString().replace(/\.\d+Z$/, "Z");
+  if (Math.abs(d.start - cut.start) > 1e-6) {
+    entry.start = d.start;
+  }
+  if (Math.abs(d.end - cut.end) > 1e-6) {
+    entry.end = d.end;
+  }
+  return entry;
+}
+
+function decisionsPayload() {
+  const decisions = Object.assign({}, DATA.decisions);
+  for (const cut of DATA.cuts.filter(isChanged)) {
+    decisions[cut.id] = changedEntry(cut);
+  }
+  const payload = { schema: "rostrum.decisions/1", talk: DATA.talk };
+  if (DATA.basedOn !== null) {
+    payload.basedOn = DATA.basedOn;
+  }
+  payload.decisions = decisions;
+  return payload;
+}
+
+async function saveDecisions() {
+  const text = JSON.stringify(decisionsPayload(), null, 2);
+  if (window.showSaveFilePicker) {
+    try {
+      const handle = await window.showSaveFilePicker({ suggestedName: DATA.saveName, types: [{ description: "JSON", accept: { "application/json": [".json"] } }] });
+      const writable = await handle.createWritable();
+      await writable.write(text);
+      await writable.close();
+      return;
+    } catch (error) {
+      if (error && error.name === "AbortError") {
+        return;
+      }
+    }
+  }
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+  link.download = DATA.saveName;
+  link.click();
+}
+
+function copyCommands() {
+  const lines = DATA.cuts.filter(isChanged).map(cut => {
+    const d = state.decisions[cut.id];
+    let line = "rostrum decide " + cut.id + " " + d.decision + " --talk " + DATA.talk;
+    if (Math.abs(d.start - cut.start) > 1e-6) {
+      line += " --start " + d.start;
+    }
+    if (Math.abs(d.end - cut.end) > 1e-6) {
+      line += " --end " + d.end;
+    }
+    return line;
+  });
+  navigator.clipboard.writeText(lines.join("\n") || "# no changes");
+}
+
+document.addEventListener("keydown", event => {
+  if (event.target.tagName === "INPUT" || event.target.tagName === "SELECT") {
+    return;
+  }
+  const cuts = visibleCuts();
+  const cut = cuts[state.active];
+  if (event.key === "j" || event.key === "k") {
+    const step = event.key === "j" ? 1 : -1;
+    state.active = Math.min(cuts.length - 1, Math.max(0, state.active + step));
+    renderCards();
+    document.querySelector(".card.active")?.scrollIntoView({ block: "nearest" });
+    return;
+  }
+  if (!cut) {
+    return;
+  }
+  if (event.key === " ") {
+    event.preventDefault();
+    play(cut, "join");
+  } else if (event.key === "b") {
+    play(cut, "before");
+  } else if (event.key === "a") {
+    play(cut, "after");
+  } else if (event.key === "c") {
+    play(cut, "cut");
+  } else if (event.key === "x") {
+    setDecision(cut, state.decisions[cut.id].decision === "cut" ? "keep" : "cut");
+  }
+});
+
+document.getElementById("title").textContent = DATA.title;
+document.getElementById("save").addEventListener("click", saveDecisions);
+document.getElementById("copy-cli").addEventListener("click", copyCommands);
+document.getElementById("save-note").textContent =
+  "Save decisions writes " + DATA.saveName + ": your earlier decisions plus the changes on this page. " +
+  "Then run: rostrum decide --import <that file> (or ask your agent to import it), and rostrum render. " +
+  "For each cut the newer decision wins, so nothing decided after this page was built is lost.";
+if (DATA.sources.length) {
+  state.currentSource = 0;
+  video.src = DATA.sources[0].url;
+}
+renderAll();
+setInterval(watch, 30);
+</script>
+</body>
+</html>

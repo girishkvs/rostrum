@@ -1,0 +1,47 @@
+{
+  "$schema": "https://raw.githubusercontent.com/modelcontextprotocol/mcpb/main/schemas/mcpb-manifest-v0.4.schema.json",
+  "manifest_version": "0.4",
+  "name": "rostrum",
+  "display_name": "rostrum",
+  "version": "__VERSION__",
+  "description": "Clean up talk recordings: find redos, retakes and dead air, review every cut, render and verify.",
+  "long_description": "rostrum finds redos, retakes, repeats and dead air in talk recordings, lets you review every proposed cut, then renders with ffmpeg and verifies the result. Everything runs locally. Needs ffmpeg/ffprobe 6.1 or newer on PATH; the first analysis downloads a speech model of about 480 MB.",
+  "author": {
+    "name": "Girish Konda",
+    "url": "https://github.com/girishkvs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/girishkvs/rostrum"
+  },
+  "homepage": "https://github.com/girishkvs/rostrum",
+  "documentation": "https://github.com/girishkvs/rostrum#readme",
+  "support": "https://github.com/girishkvs/rostrum/issues",
+  "license": "MIT",
+  "keywords": ["video", "ffmpeg", "talks", "speech-to-text", "editing"],
+  "server": {
+    "type": "uv",
+    "entry_point": "src/rostrum/__main__.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": ["run", "--directory", "${__dirname}", "rostrum", "mcp"]
+    }
+  },
+  "tools": [
+    { "name": "analyze", "description": "Analyze files or a folder; returns a job to poll" },
+    { "name": "job_status", "description": "Progress and result of a long-running job" },
+    { "name": "status", "description": "Project summary" },
+    { "name": "plan", "description": "Proposed cuts and expected output length" },
+    { "name": "list_cuts", "description": "List cuts with reasons and evidence" },
+    { "name": "decide", "description": "Record a keep or cut decision" },
+    { "name": "import_decisions", "description": "Apply decisions saved from review.html" },
+    { "name": "render", "description": "Render after the user confirms" },
+    { "name": "verify", "description": "Check a render" },
+    { "name": "map_time", "description": "Map a time in an edited video to the source" },
+    { "name": "doctor", "description": "Diagnose the setup" }
+  ],
+  "compatibility": {
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": { "python": ">=3.11" }
+  }
+}

@@ -1,0 +1,2021 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/girishkvs/rostrum/main/src/rostrum/schema/rostrum.schema.json",
+  "title": "rostrum project",
+  "description": "A rostrum project: one talk or a whole event. `defaults` apply to every talk; each talk can override any settings key.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Schema URL, for editor autocomplete and validation."
+    },
+    "$comment": {
+      "type": "string"
+    },
+    "event": {
+      "type": "string",
+      "description": "Event name, shown in reports and usable in output names."
+    },
+    "defaults": {
+      "$ref": "#/$defs/settingsFile",
+      "description": "Settings shared by every talk."
+    },
+    "talks": {
+      "type": "array",
+      "description": "Talks in this project, in queue order.",
+      "items": {
+        "$ref": "#/$defs/talk"
+      }
+    }
+  },
+  "required": [
+    "talks"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "level": {
+      "type": "string",
+      "enum": [
+        "auto",
+        "propose",
+        "off"
+      ],
+      "description": "auto: shown with cut pre-selected. propose: shown with keep pre-selected. off: not run."
+    },
+    "seconds": {
+      "type": "number",
+      "minimum": 0
+    },
+    "share": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "words": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "talk": {
+      "type": "object",
+      "description": "One talk: one or more source files in order. Any settings key overrides `defaults` for this talk.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/settings"
+        }
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "description": "Talk id: letters, digits, dot, dash and underscore."
+        },
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          },
+          "description": "Source files in order, relative to the project file. They form one timeline."
+        },
+        "speaker": {
+          "type": "string",
+          "description": "Speaker name, used by the output name template."
+        },
+        "title": {
+          "type": "string",
+          "description": "Talk title, used by the output name template."
+        }
+      },
+      "required": [
+        "id",
+        "sources"
+      ],
+      "unevaluatedProperties": false
+    },
+    "settingsFile": {
+      "description": "A settings object on its own (project defaults, ~/.rostrum/config.json).",
+      "$ref": "#/$defs/settings",
+      "unevaluatedProperties": false
+    },
+    "scriptSettings": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "Talk script as a text file, relative to the project file. Lines starting with # are headings."
+        },
+        "sectionPattern": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": "^#{1,6}\\s*Slide\\s+(\\d+)\\b.*$",
+          "description": "Heading that starts a section (group 1 is the section number)."
+        },
+        "spokenHeading": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": "### Say",
+          "description": "When a section has this heading, only the text after it is spoken."
+        },
+        "skipLines": {
+          "$ref": "#/$defs/words",
+          "default": [
+            "^\\[click\\]$",
+            "^\\*\\*",
+            "^#",
+            "^\\|",
+            "^\\[\\d+:\\d\\d\\s*-\\s*\\d+:\\d\\d\\]$"
+          ],
+          "description": "Lines matching these patterns are not spoken."
+        }
+      },
+      "additionalProperties": false
+    },
+    "settings": {
+      "type": "object",
+      "description": "Settings. Layers, later wins: built-in defaults, ~/.rostrum/config.json, project defaults, talk, CLI flags.",
+      "properties": {
+        "workDir": {
+          "type": "string",
+          "default": "{talk}.rostrum",
+          "description": "Work folder for a talk, relative to the project file. {talk} is the talk id."
+        },
+        "speech": {
+          "type": "object",
+          "description": "Speech-to-text engine and its options.",
+          "properties": {
+            "engine": {
+              "type": "string",
+              "default": "faster-whisper",
+              "description": "Engine name: faster-whisper, command, import, or a plugin from the rostrum.engines entry-point group."
+            },
+            "model": {
+              "type": "string",
+              "default": "small.en",
+              "description": "faster-whisper model name or local model folder."
+            },
+            "language": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": "en",
+              "description": "Spoken language code; null lets the engine detect it."
+            },
+            "prompt": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null,
+              "description": "Initial prompt for the engine. When null and hints are set, the hints are used."
+            },
+            "hints": {
+              "$ref": "#/$defs/words",
+              "default": [],
+              "description": "Names and terms the engine should expect (prompt and hotwords)."
+            },
+            "device": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "cpu",
+                "cuda"
+              ],
+              "default": "auto",
+              "description": "faster-whisper device."
+            },
+            "computeType": {
+              "type": "string",
+              "default": "auto",
+              "description": "faster-whisper compute type. auto: int8 on CPU, float16 on CUDA."
+            },
+            "workers": {
+              "description": "Parallel transcription workers, or auto: min(max(1, CPUs // 4), available RAM GB // 2, 6). Each model copy needs about 1-2 GB of memory.",
+              "oneOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "const": "auto"
+                }
+              ],
+              "default": "auto"
+            },
+            "threadsPerWorker": {
+              "description": "CPU threads for each worker's model, or auto: the CPUs divided by the workers, at least 1.",
+              "oneOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "const": "auto"
+                }
+              ],
+              "default": "auto"
+            },
+            "beamSize": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 5,
+              "description": "Decoder beam size."
+            },
+            "vadMinSilenceMs": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 500,
+              "description": "Voice activity filter: shortest silence that splits speech."
+            },
+            "chunkSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 120,
+              "description": "Length of each parallel transcription chunk."
+            },
+            "overlapSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 5,
+              "description": "Audio overlap on each side of a chunk."
+            },
+            "chunkSearchSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 15,
+              "description": "How far from the nominal chunk end to look for a silence to split at."
+            },
+            "chunkMinSilenceSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 0.2,
+              "description": "Shortest silence used as a chunk split point."
+            },
+            "retryEcho": {
+              "type": "boolean",
+              "default": true,
+              "description": "Re-transcribe, without the prompt, segments where the engine echoed its prompt."
+            },
+            "echoMinWords": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 4,
+              "description": "Consecutive prompt words that mark a segment as an echo."
+            },
+            "cuePass": {
+              "type": "boolean",
+              "default": true,
+              "description": "Second pass without voice filtering to catch short spoken cues (engines that support it)."
+            },
+            "cueScope": {
+              "type": "string",
+              "enum": [
+                "targeted",
+                "full"
+              ],
+              "default": "full",
+              "description": "full: the whole timeline in overlapping cueWindowSec windows. targeted: only short windows around a burst of sound in a gap between words or a span the main pass got wrong; on a short clip with few gaps it is faster, but the model often misses a word near the start of a short window, so it finds fewer cues."
+            },
+            "cueFallback": {
+              "type": "boolean",
+              "default": false,
+              "description": "Let the cue pass retry hard audio at higher temperatures. Off: one decode per window at temperature 0, so noise and silence cost one decode, not six, and the result is the same on every run."
+            },
+            "cueGapSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 0.8,
+              "description": "targeted: gaps between main-pass words at least this long are checked for sound."
+            },
+            "cueSoundSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 0.1,
+              "description": "targeted: shortest burst of sound in a gap that gets a cue window."
+            },
+            "cuePadSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 1.0,
+              "description": "targeted: audio kept around each place, for context."
+            },
+            "cueMergeSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 2.0,
+              "description": "targeted: places closer than this share a window."
+            },
+            "cueMaxWindowSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 30,
+              "description": "targeted: longest window."
+            },
+            "cueWindowSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 60,
+              "description": "Cue pass window length."
+            },
+            "cueStepSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 57,
+              "description": "Cue pass window step."
+            },
+            "cueEdgeSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 1.5,
+              "description": "Words this close to an inner window edge are taken from the neighbouring window."
+            },
+            "cueWords": {
+              "$ref": "#/$defs/words",
+              "default": [
+                "stop",
+                "redo",
+                "redoing",
+                "restart",
+                "sorry"
+              ],
+              "description": "Words the cue pass adds to the transcript when the main pass missed them."
+            },
+            "command": {
+              "$ref": "#/$defs/words",
+              "default": [],
+              "description": "command engine: program and arguments. Placeholders: {audio} (a 16 kHz mono WAV of the source, on the source's clock), {input} (the source file itself), {output}, {language}, {model}. Prefer {audio}: when a source's audio starts late, only {audio} is padded so word times line up with the video; a tool that reads {input} would time its words from the audio start. On Windows, a .bat or .cmd program, or cmd itself, gets no argument with & ^ % ! < > | or a quote."
+            },
+            "format": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "json",
+                "srt",
+                "vtt"
+              ],
+              "default": "auto",
+              "description": "command and import engines: transcript format."
+            },
+            "timeoutSec": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0,
+              "default": null,
+              "description": "command engine: time limit per source; null means no limit."
+            },
+            "transcripts": {
+              "$ref": "#/$defs/words",
+              "default": [],
+              "description": "import engine: one transcript per source, relative to the project file. Empty: look for <source stem>.words.json, .json, .srt or .vtt next to the source."
+            },
+            "fields": {
+              "type": "object",
+              "description": "Field mapping for JSON transcripts. Paths use dots; [] flattens a list (segments[].words[]).",
+              "properties": {
+                "words": {
+                  "type": "string",
+                  "default": "words"
+                },
+                "start": {
+                  "type": "string",
+                  "default": "start"
+                },
+                "end": {
+                  "type": "string",
+                  "default": "end"
+                },
+                "word": {
+                  "type": "string",
+                  "default": "word"
+                },
+                "probability": {
+                  "type": "string",
+                  "default": "probability"
+                },
+                "segments": {
+                  "type": "string",
+                  "default": "segments"
+                },
+                "duration": {
+                  "type": "string",
+                  "default": "duration"
+                },
+                "timeScale": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "default": 1.0,
+                  "description": "Multiply times by this to get seconds (0.001 for milliseconds)."
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "transcript": {
+          "type": "object",
+          "description": "How words are grouped and shown.",
+          "properties": {
+            "sentenceEnd": {
+              "type": "string",
+              "default": ".?!",
+              "description": "Characters that end a sentence unit."
+            },
+            "unitGapSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 0.8,
+              "description": "A silence this long also ends a sentence unit."
+            },
+            "longWordSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 1.0,
+              "description": "Words longer than this are trimmed to their loud frames."
+            },
+            "longWordPadBeforeSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 0.08
+            },
+            "longWordPadAfterSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 0.12
+            },
+            "failedPadSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 0.3,
+              "description": "Margin around ranges where transcription failed."
+            },
+            "unclearBelow": {
+              "$ref": "#/$defs/share",
+              "default": 0.35,
+              "description": "Words below this probability show as [unclear] in evidence."
+            },
+            "contextWords": {
+              "$ref": "#/$defs/count",
+              "default": 8,
+              "description": "Words of evidence before and after a cut."
+            }
+          },
+          "additionalProperties": false
+        },
+        "audio": {
+          "type": "object",
+          "description": "Loudness analysis used to place cut edges in quiet frames.",
+          "properties": {
+            "frameSec": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "default": 0.02,
+              "description": "Analysis frame length."
+            },
+            "floorPercentile": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "default": 10,
+              "description": "Noise floor: this percentile of frame loudness."
+            },
+            "peakPercentile": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "default": 95,
+              "description": "Speech peak: this percentile of frame loudness."
+            },
+            "silenceLevel": {
+              "$ref": "#/$defs/share",
+              "default": 0.25,
+              "description": "Silence threshold, as a share of the way from floor to peak."
+            },
+            "speechLevel": {
+              "$ref": "#/$defs/share",
+              "default": 0.5,
+              "description": "Speech threshold, as a share of the way from floor to peak."
+            }
+          },
+          "additionalProperties": false
+        },
+        "text": {
+          "type": "object",
+          "description": "Word lists used to compare sentences.",
+          "properties": {
+            "stopWords": {
+              "$ref": "#/$defs/words",
+              "description": "Words ignored when comparing the key words of two sentences.",
+              "default": [
+                "a",
+                "an",
+                "the",
+                "and",
+                "or",
+                "but",
+                "if",
+                "then",
+                "so",
+                "of",
+                "to",
+                "in",
+                "on",
+                "at",
+                "by",
+                "for",
+                "with",
+                "from",
+                "as",
+                "is",
+                "are",
+                "was",
+                "were",
+                "be",
+                "been",
+                "being",
+                "it",
+                "its",
+                "it's",
+                "this",
+                "that",
+                "these",
+                "those",
+                "there",
+                "here",
+                "we",
+                "we'll",
+                "we've",
+                "we're",
+                "i",
+                "i'm",
+                "i'd",
+                "i'll",
+                "you",
+                "your",
+                "you're",
+                "they",
+                "them",
+                "their",
+                "our",
+                "us",
+                "he",
+                "she",
+                "his",
+                "her",
+                "not",
+                "no",
+                "do",
+                "does",
+                "did",
+                "done",
+                "don't",
+                "doesn't",
+                "didn't",
+                "can",
+                "can't",
+                "could",
+                "would",
+                "should",
+                "shouldn't",
+                "will",
+                "won't",
+                "just",
+                "than",
+                "too",
+                "very",
+                "also",
+                "into",
+                "out",
+                "up",
+                "down",
+                "over",
+                "about",
+                "what",
+                "which",
+                "who",
+                "when",
+                "where",
+                "why",
+                "how",
+                "all",
+                "any",
+                "each",
+                "every",
+                "some",
+                "more",
+                "most",
+                "other",
+                "another",
+                "only",
+                "own",
+                "same",
+                "such",
+                "both",
+                "one",
+                "me",
+                "my",
+                "let",
+                "let's",
+                "lets",
+                "s",
+                "t",
+                "re",
+                "ve",
+                "ll",
+                "d",
+                "m",
+                "mean",
+                "yeah",
+                "okay",
+                "ok",
+                "like",
+                "actually",
+                "basically",
+                "kind",
+                "sort",
+                "know",
+                "going",
+                "gonna",
+                "want",
+                "take",
+                "say",
+                "said",
+                "think",
+                "really",
+                "well",
+                "right",
+                "now",
+                "get",
+                "got",
+                "go",
+                "see",
+                "look",
+                "thing",
+                "things",
+                "way",
+                "use",
+                "using",
+                "still",
+                "need",
+                "needs",
+                "make",
+                "makes",
+                "yes"
+              ]
+            },
+            "discourseWords": {
+              "$ref": "#/$defs/words",
+              "description": "Words skipped at the start of a sentence when checking for a restarted phrase.",
+              "default": [
+                "so",
+                "and",
+                "okay",
+                "ok",
+                "now",
+                "but",
+                "well",
+                "yeah",
+                "right",
+                "alright",
+                "um",
+                "uh",
+                "yes"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "cues": {
+          "type": "object",
+          "description": "Spoken cues such as \"redo\" or \"stop\". The cut goes back to where the abandoned attempt started.",
+          "properties": {
+            "level": {
+              "$ref": "#/$defs/level",
+              "default": "auto"
+            },
+            "patterns": {
+              "type": "array",
+              "description": "Cue phrases (regular expressions on lower-case words). Low-confidence phrases are proposed unless an abandoned attempt is found before them.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "pattern": {
+                    "type": "string"
+                  },
+                  "confidence": {
+                    "type": "string",
+                    "enum": [
+                      "high",
+                      "low"
+                    ],
+                    "default": "high"
+                  }
+                },
+                "required": [
+                  "pattern"
+                ],
+                "additionalProperties": false
+              },
+              "default": [
+                {
+                  "pattern": "\\blet me (?:redo|restart|re do)\\b",
+                  "confidence": "high"
+                },
+                {
+                  "pattern": "\\blet me (?:start|try|say|do) (?:it |that |this )?(?:again|over)\\b",
+                  "confidence": "high"
+                },
+                {
+                  "pattern": "\\b(?:start|starting) (?:again|over)\\b",
+                  "confidence": "high"
+                },
+                {
+                  "pattern": "\\bone more time\\b",
+                  "confidence": "high"
+                },
+                {
+                  "pattern": "\\bfrom the top\\b",
+                  "confidence": "high"
+                },
+                {
+                  "pattern": "\\bscratch that\\b",
+                  "confidence": "high"
+                },
+                {
+                  "pattern": "\\btake two\\b",
+                  "confidence": "high"
+                },
+                {
+                  "pattern": "\\bredo\\b",
+                  "confidence": "high"
+                },
+                {
+                  "pattern": "\\bretake\\b",
+                  "confidence": "high"
+                },
+                {
+                  "pattern": "\\blet me rephrase\\b",
+                  "confidence": "high"
+                },
+                {
+                  "pattern": "\\bsorry\\b",
+                  "confidence": "low"
+                },
+                {
+                  "pattern": "\\boops\\b",
+                  "confidence": "low"
+                },
+                {
+                  "pattern": "\\bmy bad\\b",
+                  "confidence": "low"
+                }
+              ]
+            },
+            "words": {
+              "$ref": "#/$defs/words",
+              "default": [
+                "stop",
+                "redo",
+                "restart"
+              ],
+              "description": "Single words that start a stand-alone cue (\"Stop.\", \"Redo, okay.\"). Matched case-insensitively without punctuation; put phrases in patterns."
+            },
+            "endWords": {
+              "$ref": "#/$defs/words",
+              "default": [
+                "stop",
+                "redo"
+              ],
+              "description": "Single words that end a stand-alone cue (\"Okay, stop.\")."
+            },
+            "companionWords": {
+              "$ref": "#/$defs/words",
+              "default": [
+                "start",
+                "again",
+                "okay",
+                "so",
+                "um",
+                "uh"
+              ],
+              "description": "Other single words allowed inside a stand-alone cue."
+            },
+            "trailingWords": {
+              "$ref": "#/$defs/words",
+              "default": [
+                "stop"
+              ],
+              "description": "A sentence ending in one of these single words, then a silence, is a cue too."
+            },
+            "trailingGapSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 1.0,
+              "description": "Silence needed after a trailing cue word."
+            },
+            "maxCueWords": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 2,
+              "description": "Longest stand-alone cue, in words."
+            },
+            "phraseLookbackSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 60,
+              "description": "Cue phrases: how far back to look for the abandoned attempt."
+            },
+            "lookbackSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 90,
+              "description": "Stand-alone cues: how far back to look for the abandoned attempt."
+            },
+            "resaidWindowSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 150,
+              "description": "An earlier sentence is part of the abandoned attempt only if it is said again within this time after the cue."
+            },
+            "resaidShare": {
+              "$ref": "#/$defs/share",
+              "default": 0.5,
+              "description": "Share of a sentence's key words that must be said again."
+            },
+            "resaidMinWords": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 2,
+              "description": "Key words that must be said again (unless the sentence has only one)."
+            }
+          },
+          "additionalProperties": false
+        },
+        "retakes": {
+          "type": "object",
+          "description": "A sentence said again within the window. Strong matches are cut; loose matches are proposed. A sentence said again with swapped words gets substitutionLevel instead.",
+          "properties": {
+            "level": {
+              "$ref": "#/$defs/level",
+              "default": "auto"
+            },
+            "substitutionLevel": {
+              "$ref": "#/$defs/level",
+              "default": "propose",
+              "description": "For a sentence said again with swapped words (\u201cpage before the change\u201d, then \u201cpage after the change\u201d): deliberate parallel phrasing or a spoken correction, so it is proposed with keep selected. auto: cut it like any retake. off: never treat it as a retake. A restart or an extension of the earlier sentence keeps level."
+            },
+            "substitutionMaxWords": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 2,
+              "description": "Longest swap, in words on each side, that still counts as a substitution. A longer change between the shared words makes the pair a rewording, which keeps level."
+            },
+            "windowSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 180,
+              "description": "Longest time between an attempt and its retake."
+            },
+            "ngram": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 3,
+              "description": "Word n-gram size for a quick shared-phrase check."
+            },
+            "strongRun": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 6,
+              "description": "Shared run of words that makes a strong match."
+            },
+            "shortRun": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 4,
+              "description": "A shorter shared run also counts when it covers shortRunShare of the attempt."
+            },
+            "shortRunShare": {
+              "$ref": "#/$defs/share",
+              "default": 0.8
+            },
+            "scriptedRunMax": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 6,
+              "description": "Words of the shared run checked against the script."
+            },
+            "scriptedLimit": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 2,
+              "description": "A shared run found in this many script sentences is a planned repeat, not a retake."
+            },
+            "shortMinWords": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 3
+            },
+            "shortMaxWords": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 6
+            },
+            "shortRetakeMaxWords": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 8
+            },
+            "shortRatio": {
+              "$ref": "#/$defs/share",
+              "default": 0.75,
+              "description": "Similarity that makes two short sentences a strong match."
+            },
+            "prefixMaxWords": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 4,
+              "description": "A short sentence that the next sentence starts with is a false start."
+            },
+            "prefixMaxGapSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 15
+            },
+            "sharedWords": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 3,
+              "description": "Shared key words for a loose match."
+            },
+            "sharedShare": {
+              "$ref": "#/$defs/share",
+              "default": 0.5
+            },
+            "nearSharedWords": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 2,
+              "description": "Shared key words for a loose match within nearSec."
+            },
+            "nearShare": {
+              "$ref": "#/$defs/share",
+              "default": 0.6
+            },
+            "nearSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 30
+            },
+            "scriptSame": {
+              "$ref": "#/$defs/share",
+              "default": 0.4,
+              "description": "Script match that puts two sentences on the same script line."
+            },
+            "scriptConflict": {
+              "$ref": "#/$defs/share",
+              "default": 0.5,
+              "description": "Script match that puts two sentences on different script lines (not a retake)."
+            },
+            "scriptMapped": {
+              "$ref": "#/$defs/share",
+              "default": 0.3,
+              "description": "Script match that marks a sentence as scripted."
+            },
+            "guardRegionMinSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 30,
+              "description": "Everything cut must be said again within max(this, guardRegionFactor x attempt length) after the retake."
+            },
+            "guardRegionFactor": {
+              "type": "number",
+              "minimum": 0,
+              "default": 1.5
+            },
+            "guardRetakeUnits": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 3,
+              "description": "Sentences at the retake whose key words cover cut sentences."
+            },
+            "guardCoveredShare": {
+              "$ref": "#/$defs/share",
+              "default": 0.8
+            },
+            "asideMaxWords": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 8,
+              "description": "Sentences up to this long next to an aside can be cut with it."
+            },
+            "asideGapSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 1.5
+            },
+            "unclearMaxWords": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 4
+            },
+            "unclearBelow": {
+              "$ref": "#/$defs/share",
+              "default": 0.3,
+              "description": "Short sentences below this mean word probability can be cut with a retake."
+            }
+          },
+          "additionalProperties": false
+        },
+        "repeats": {
+          "type": "object",
+          "description": "A restarted phrase inside one sentence (\"we shipped it on, shipped it on Friday\").",
+          "properties": {
+            "level": {
+              "$ref": "#/$defs/level",
+              "default": "propose"
+            },
+            "ngram": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 3,
+              "description": "Repeated words that mark a restart."
+            },
+            "lookbackWords": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 15
+            },
+            "extraWords": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 6,
+              "description": "Words after the restart that must contain every key word of the dropped part."
+            },
+            "prefixMinLength": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 4,
+              "description": "A dropped word this long also matches a longer word that starts with it."
+            }
+          },
+          "additionalProperties": false
+        },
+        "pauses": {
+          "type": "object",
+          "description": "Dead air over maxSec is trimmed to keepSec on each side.",
+          "properties": {
+            "level": {
+              "$ref": "#/$defs/level",
+              "default": "auto"
+            },
+            "maxSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 2.0
+            },
+            "keepSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 0.5
+            },
+            "islandMarginSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 0.2,
+              "description": "Loud sounds inside a pause (a click, a breath) split it; this margin is ignored at each end."
+            },
+            "islandMinSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 0.1
+            },
+            "islandRemovedShare": {
+              "$ref": "#/$defs/share",
+              "default": 0.5
+            }
+          },
+          "additionalProperties": false
+        },
+        "leads": {
+          "type": "object",
+          "description": "Dead air at the start and end of the talk.",
+          "properties": {
+            "level": {
+              "$ref": "#/$defs/level",
+              "default": "auto"
+            },
+            "inSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 1.0,
+              "description": "Kept before the first word."
+            },
+            "outSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 1.5,
+              "description": "Kept after the last word."
+            },
+            "minProbability": {
+              "$ref": "#/$defs/share",
+              "default": 0.2,
+              "description": "First and last words must be at least this clear."
+            },
+            "minSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 0.05
+            }
+          },
+          "additionalProperties": false
+        },
+        "offtalk": {
+          "type": "object",
+          "description": "Short asides that are not part of the talk (\"Is this recording?\").",
+          "properties": {
+            "level": {
+              "$ref": "#/$defs/level",
+              "default": "propose"
+            },
+            "strongWords": {
+              "$ref": "#/$defs/words",
+              "default": [
+                "hello",
+                "hi",
+                "hey",
+                "please",
+                "thanks",
+                "thank",
+                "sir",
+                "maam",
+                "bye",
+                "coming",
+                "minute",
+                "sec",
+                "hold",
+                "wait",
+                "sorry"
+              ]
+            },
+            "okWords": {
+              "$ref": "#/$defs/words",
+              "default": [
+                "yes",
+                "no",
+                "okay",
+                "ok",
+                "sure",
+                "not",
+                "now",
+                "later",
+                "one",
+                "second",
+                "alright",
+                "yeah",
+                "nope",
+                "yep"
+              ],
+              "description": "Words that may fill a clear aside besides strongWords and stop words."
+            },
+            "greetingWords": {
+              "$ref": "#/$defs/words",
+              "default": [
+                "everyone",
+                "morning",
+                "afternoon",
+                "evening"
+              ],
+              "description": "A sentence with these words is a greeting to the audience, not an aside."
+            },
+            "maxWords": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 8
+            },
+            "isolationSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 0.6,
+              "description": "Silence needed on both sides."
+            },
+            "unclearBelow": {
+              "$ref": "#/$defs/share",
+              "default": 0.3
+            },
+            "clearMinWords": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 2
+            },
+            "clearMaxWords": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 4
+            },
+            "extendSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 0.6
+            },
+            "extendDropDb": {
+              "type": "number",
+              "minimum": 0,
+              "default": 16
+            },
+            "edgeSearchSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 0.25
+            },
+            "edgeOffsetSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 0.1
+            },
+            "edgeRadiusSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 0.12
+            }
+          },
+          "additionalProperties": false
+        },
+        "fillers": {
+          "type": "object",
+          "description": "Filler words. The list is always used to compare sentences; the detector is off by default.",
+          "properties": {
+            "level": {
+              "$ref": "#/$defs/level",
+              "default": "off"
+            },
+            "words": {
+              "$ref": "#/$defs/words",
+              "default": [
+                "um",
+                "uh",
+                "umm",
+                "uhm",
+                "hmm",
+                "mm",
+                "er",
+                "erm",
+                "ah"
+              ]
+            },
+            "minSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 0.15,
+              "description": "Shortest filler worth cutting."
+            }
+          },
+          "additionalProperties": false
+        },
+        "unclear": {
+          "type": "object",
+          "description": "Stretches the transcript cannot be trusted: an overlong word, a run of low-confidence words, a segment the engine was unsure of or that reads like a known hallucination, speech with no words, or a range where transcription failed. They are proposed for a listen, and retake and cue matching never joins words across them.",
+          "properties": {
+            "level": {
+              "$ref": "#/$defs/level",
+              "default": "propose"
+            },
+            "maxWordSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 2.0,
+              "description": "A word whose sound lasts longer than this is unclear (the engine stretched it over something it did not transcribe). Measured on the word's loud frames."
+            },
+            "minProbability": {
+              "$ref": "#/$defs/share",
+              "default": 0.35,
+              "description": "Words below this probability are low-confidence."
+            },
+            "minSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 1.0,
+              "description": "A run of low-confidence words this long is unclear."
+            },
+            "maxAvgLogprob": {
+              "type": "number",
+              "default": -0.8,
+              "description": "A segment whose average log-probability is below this is unclear."
+            },
+            "untranscribedSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 2.0,
+              "description": "A gap between words holding at least this much speech-level sound is unclear: speech the engine did not transcribe."
+            },
+            "hallucinationPhrases": {
+              "$ref": "#/$defs/words",
+              "default": [
+                "thanks for watching",
+                "thank you for watching",
+                "like and subscribe",
+                "please subscribe",
+                "subscribe to my channel",
+                "see you in the next video",
+                "please like, share",
+                "subtitles by"
+              ],
+              "description": "A segment containing one of these phrases is unclear, and its words are not matched."
+            },
+            "mergeGapSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 1.0,
+              "description": "Unclear stretches closer than this are proposed as one. Also the longest pause inside a run of low-confidence words."
+            },
+            "breakSentences": {
+              "type": "boolean",
+              "default": true,
+              "description": "Unclear stretches break sentences: retake, cue, repeat and off-talk matching never joins words across their edges, and the words of untrusted stretches (an overlong word, a segment that reads like a hallucination) stand alone and are not matched. Off: match exactly as the original rules did."
+            }
+          },
+          "additionalProperties": false
+        },
+        "edges": {
+          "type": "object",
+          "description": "Where a cut edge goes between two words: the quietest frame near the gap.",
+          "properties": {
+            "lookbackWords": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 3
+            },
+            "tightGapSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 0.06
+            },
+            "tightRadiusSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 0.08
+            },
+            "maxOffsetSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 0.3
+            },
+            "marginSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 0.03
+            },
+            "radiusSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 0.15
+            }
+          },
+          "additionalProperties": false
+        },
+        "plan": {
+          "type": "object",
+          "description": "How candidates become the cut list.",
+          "properties": {
+            "minPieceSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 0.05,
+              "description": "Smaller pieces of overlapping cuts are dropped."
+            },
+            "minKeepSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 0.25,
+              "description": "Kept pieces shorter than this, with no word in them, are cut too."
+            },
+            "maxProposalSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 120,
+              "description": "Longer low-confidence candidates are not proposed."
+            },
+            "coveredShare": {
+              "$ref": "#/$defs/share",
+              "default": 0.8,
+              "description": "Proposals already this covered by cuts are dropped."
+            }
+          },
+          "additionalProperties": false
+        },
+        "reconcile": {
+          "type": "object",
+          "description": "Second pass: cut loose retakes that are said again later, cut back from stand-alone cues, and use slide evidence when a slide timeline is set.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "retakes": {
+              "type": "object",
+              "properties": {
+                "maxSpanSec": {
+                  "$ref": "#/$defs/seconds",
+                  "default": 90,
+                  "description": "Longest attempt-to-retake span for a loose retake."
+                },
+                "sameOpeningWords": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "default": 3,
+                  "description": "Attempt and retake starting with the same words count as the same sentence."
+                },
+                "regionMinSec": {
+                  "$ref": "#/$defs/seconds",
+                  "default": 30
+                },
+                "regionFactor": {
+                  "type": "number",
+                  "minimum": 0,
+                  "default": 1.5
+                },
+                "firstUnitShare": {
+                  "$ref": "#/$defs/share",
+                  "default": 0.4,
+                  "description": "Key words of the first cut sentence that must be said again."
+                },
+                "unitShare": {
+                  "$ref": "#/$defs/share",
+                  "default": 0.5,
+                  "description": "Key words of every other cut sentence that must be said again."
+                }
+              },
+              "additionalProperties": false
+            },
+            "slides": {
+              "type": "object",
+              "properties": {
+                "unitCutShare": {
+                  "$ref": "#/$defs/share",
+                  "default": 0.6,
+                  "description": "A sentence this covered by cuts counts as cut."
+                },
+                "resaidMinWindowSec": {
+                  "$ref": "#/$defs/seconds",
+                  "default": 120
+                },
+                "resaidVisitFactor": {
+                  "type": "number",
+                  "minimum": 0,
+                  "default": 2
+                },
+                "repeatWindowSec": {
+                  "$ref": "#/$defs/seconds",
+                  "default": 300
+                },
+                "resaidShare": {
+                  "$ref": "#/$defs/share",
+                  "default": 0.6
+                },
+                "resaidMinWords": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "default": 2,
+                  "description": "Key words that must be said again (unless the sentence has only one)."
+                },
+                "abortedShare": {
+                  "$ref": "#/$defs/share",
+                  "default": 0.7,
+                  "description": "A slide visit is an aborted start when this share of its sentences is said again later."
+                },
+                "unitPadSec": {
+                  "$ref": "#/$defs/seconds",
+                  "default": 0.05
+                },
+                "protectPadSec": {
+                  "$ref": "#/$defs/seconds",
+                  "default": 0.12
+                },
+                "minCutSec": {
+                  "$ref": "#/$defs/seconds",
+                  "default": 0.15
+                },
+                "snapRadiusSec": {
+                  "$ref": "#/$defs/seconds",
+                  "default": 0.15
+                },
+                "flashSec": {
+                  "$ref": "#/$defs/seconds",
+                  "default": 0.7,
+                  "description": "A slide shown for less than this between other slides is a flash."
+                },
+                "fragmentPasses": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "default": 3
+                }
+              },
+              "additionalProperties": false
+            },
+            "proposalCoveredShare": {
+              "$ref": "#/$defs/share",
+              "default": 0.8
+            }
+          },
+          "additionalProperties": false
+        },
+        "slides": {
+          "type": "object",
+          "description": "Optional slide evidence from an existing slide timeline (slides.timeline). The slide check flags back-jumps and flashes; slide-based cuts are proposed by default. Matching slides from a deck is not in 0.1: the other keys are reserved.",
+          "properties": {
+            "level": {
+              "$ref": "#/$defs/level",
+              "default": "propose"
+            },
+            "deck": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null,
+              "description": "Reserved; not used in 0.1. Slide deck (PDF or a folder of images)."
+            },
+            "timeline": {
+              "description": "Existing slide-timeline outputs: a path prefix (<folder>/<label>) or a -timeline.csv file; a list gives one per source.",
+              "type": [
+                "string",
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              },
+              "default": null
+            },
+            "threshold": {
+              "$ref": "#/$defs/share",
+              "default": 0.93,
+              "description": "Reserved; not used in 0.1. Matching: correlation needed to name a slide."
+            },
+            "sampleFps": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "default": 3,
+              "description": "Reserved; not used in 0.1. Matching: frames sampled per second."
+            },
+            "crop": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "minItems": 4,
+              "maxItems": 4,
+              "default": null,
+              "description": "Reserved; not used in 0.1. Matching: slide area [x, y, width, height] in video pixels; null finds it."
+            },
+            "titleRows": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 44,
+              "description": "Reserved; not used in 0.1. Matching: rows of the 144-row slide image used to name the slide."
+            },
+            "bodyRows": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "minItems": 2,
+              "maxItems": 2,
+              "default": [
+                44,
+                132
+              ],
+              "description": "Reserved; not used in 0.1. Matching: rows used to measure reveal progress."
+            },
+            "finalMinSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 20,
+              "description": "Reserved; not used in 0.1. Matching: the final pass of a slide is its last visit at least this long."
+            },
+            "shortVisitSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 3,
+              "description": "Reserved; not used in 0.1. Matching: a visit shorter than this is a flash."
+            },
+            "transitionMaxSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 0.5,
+              "description": "Reserved; not used in 0.1. Matching: longest slide transition."
+            },
+            "revealTolerance": {
+              "$ref": "#/$defs/share",
+              "default": 0.02,
+              "description": "Reserved; not used in 0.1. Matching: reveal progress noise to ignore."
+            },
+            "revealMinStep": {
+              "$ref": "#/$defs/share",
+              "default": 0.04,
+              "description": "Reserved; not used in 0.1. Matching: smallest reveal step."
+            },
+            "rewindMin": {
+              "$ref": "#/$defs/share",
+              "default": 0.06,
+              "description": "Reserved; not used in 0.1. Matching: smallest reveal rewind."
+            },
+            "maxOffSec": {
+              "$ref": "#/$defs/seconds",
+              "default": 1.0,
+              "description": "Reserved; not used in 0.1. Matching: longest time with no slide in view."
+            }
+          },
+          "additionalProperties": false
+        },
+        "script": {
+          "description": "Optional talk script: a path, or {path, sectionPattern, spokenHeading, skipLines}. Matching sentences against it tells a retake from a planned repeat. Off when no path is set.",
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/scriptSettings"
+            }
+          ]
+        },
+        "render": {
+          "type": "object",
+          "description": "Render settings (rostrum render).",
+          "properties": {
+            "videoCodec": {
+              "type": "string",
+              "default": "libx264"
+            },
+            "crf": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "default": 18,
+              "description": "x264 quality (lower is better); null leaves it to the encoder."
+            },
+            "preset": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": "veryfast",
+              "description": "x264 speed preset."
+            },
+            "profile": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": "high"
+            },
+            "pixelFormat": {
+              "type": "string",
+              "default": "yuv420p"
+            },
+            "keyframeSec": {
+              "type": "number",
+              "default": 2.0
+            },
+            "scThreshold": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "default": 0
+            },
+            "colorPrimaries": {
+              "type": [
+                "string",
+                "number",
+                "null"
+              ],
+              "default": null
+            },
+            "colorTrc": {
+              "type": [
+                "string",
+                "number",
+                "null"
+              ],
+              "default": null
+            },
+            "colorspace": {
+              "type": [
+                "string",
+                "number",
+                "null"
+              ],
+              "default": null
+            },
+            "colorRange": {
+              "type": [
+                "string",
+                "number",
+                "null"
+              ],
+              "default": null
+            },
+            "audioCodec": {
+              "type": "string",
+              "default": "aac"
+            },
+            "audioBitrate": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": "192k",
+              "description": "Audio bitrate."
+            },
+            "audioRate": {
+              "type": "number",
+              "default": 48000,
+              "description": "Audio sample rate of the output."
+            },
+            "audioChannels": {
+              "type": "number",
+              "default": 2
+            },
+            "audioFadeMs": {
+              "type": "number",
+              "default": 15,
+              "description": "Audio fade at every join."
+            },
+            "faststart": {
+              "type": "boolean",
+              "default": true
+            },
+            "container": {
+              "type": "string",
+              "default": "mp4",
+              "description": "Output container: mp4, mkv or mov."
+            },
+            "stripMetadata": {
+              "type": "boolean",
+              "default": true
+            },
+            "loudnessLufs": {
+              "type": [
+                "string",
+                "number",
+                "null"
+              ],
+              "default": null,
+              "description": "EBU R128 loudness target; null leaves loudness alone."
+            },
+            "loudnessTruePeak": {
+              "type": "number",
+              "default": -1.5
+            },
+            "loudnessRange": {
+              "type": "number",
+              "default": 11.0
+            },
+            "loudnessLinear": {
+              "type": "boolean",
+              "default": true
+            },
+            "name": {
+              "type": "string",
+              "default": "{speaker}-{title}",
+              "description": "Output name template: {talk}, {speaker}, {title}, {event}, {date}."
+            },
+            "nameFallback": {
+              "type": "string",
+              "default": "{talk}"
+            },
+            "nameSpace": {
+              "type": "string",
+              "default": "_"
+            },
+            "runDir": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": "render-{n}"
+            },
+            "workDir": {
+              "type": [
+                "string",
+                "number",
+                "null"
+              ],
+              "default": null
+            },
+            "keepWork": {
+              "type": "boolean",
+              "default": false
+            },
+            "normalizeVfr": {
+              "type": "boolean",
+              "default": true,
+              "description": "Convert variable frame rate sources to constant frame rate first."
+            },
+            "normalizeCodec": {
+              "type": "string",
+              "default": "libx264"
+            },
+            "normalizeCrf": {
+              "type": "number",
+              "default": 12
+            },
+            "normalizePreset": {
+              "type": "string",
+              "default": "veryfast"
+            },
+            "normalizeAudioBitrate": {
+              "type": "string",
+              "default": "320k"
+            },
+            "standardRates": {
+              "type": "array",
+              "default": [
+                "24000/1001",
+                "24",
+                "25",
+                "30000/1001",
+                "30",
+                "50",
+                "60000/1001",
+                "60"
+              ],
+              "items": {
+                "type": "string"
+              }
+            },
+            "maxEndOverrunSec": {
+              "type": "number",
+              "default": 2.0
+            },
+            "progressPeriodSec": {
+              "type": "number",
+              "default": 5
+            },
+            "logLevel": {
+              "type": "string",
+              "default": "warning"
+            },
+            "extraOutputArgs": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "vfrRateTolerance": {
+              "type": "number",
+              "default": 0.01
+            },
+            "vfrJitterFrames": {
+              "type": "number",
+              "default": 0.1
+            },
+            "vfrJitterRatio": {
+              "type": "number",
+              "default": 0.02
+            },
+            "vfrSampleFrames": {
+              "type": "number",
+              "default": 300
+            }
+          },
+          "additionalProperties": false
+        },
+        "verify": {
+          "type": "object",
+          "description": "Render checks (rostrum verify).",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "default": "fast",
+              "description": "fast checks timestamps at every join and samples A/V offset; full also checks A/V offset at every join and writes before/after PNGs."
+            },
+            "durationToleranceFrames": {
+              "type": "number",
+              "default": 1
+            },
+            "avLengthToleranceMs": {
+              "type": "number",
+              "default": 50
+            },
+            "frameStepToleranceTicks": {
+              "type": "number",
+              "default": 1
+            },
+            "frameCountTolerance": {
+              "type": "number",
+              "default": 0
+            },
+            "audioStepToleranceTicks": {
+              "type": "number",
+              "default": 1
+            },
+            "fastDecode": {
+              "type": "boolean",
+              "default": true
+            },
+            "decodeFrameTolerance": {
+              "type": "number",
+              "default": 0
+            },
+            "playEndToleranceSec": {
+              "type": "number",
+              "default": 0.2
+            },
+            "joinVideoStepToleranceMs": {
+              "type": "number",
+              "default": 1.0
+            },
+            "joinFrameTimeToleranceMs": {
+              "type": "number",
+              "default": 2.0
+            },
+            "joinAudioStepToleranceMs": {
+              "type": "number",
+              "default": 1.0
+            },
+            "fastSampleJoins": {
+              "type": "number",
+              "default": 12
+            },
+            "avOffsetLimitMs": {
+              "type": "number",
+              "default": 5.0
+            },
+            "avWindowSec": {
+              "type": "number",
+              "default": 3.0
+            },
+            "avMinWindowSec": {
+              "type": "number",
+              "default": 0.5
+            },
+            "avEdgeMarginSec": {
+              "type": "number",
+              "default": 0.2
+            },
+            "avGuardSec": {
+              "type": "number",
+              "default": 0.05
+            },
+            "avMaxLagSec": {
+              "type": "number",
+              "default": 0.1
+            },
+            "avSampleRate": {
+              "type": "number",
+              "default": 8000
+            },
+            "avNoSeekBelowSec": {
+              "type": "number",
+              "default": 1.0
+            },
+            "avQuietRms": {
+              "type": "number",
+              "default": 0.002
+            },
+            "avMinCorrelation": {
+              "type": "number",
+              "default": 0.5
+            },
+            "pngs": {
+              "type": "boolean",
+              "default": true
+            },
+            "pngDir": {
+              "type": "string",
+              "default": "verify-png"
+            },
+            "pngWidth": {
+              "type": [
+                "string",
+                "number",
+                "null"
+              ],
+              "default": null
+            },
+            "workers": {
+              "type": "number",
+              "default": 4
+            }
+          },
+          "additionalProperties": false
+        },
+        "tools": {
+          "type": "object",
+          "description": "Tool paths. Empty: ROSTRUM_FFMPEG / ROSTRUM_FFPROBE, then PATH.",
+          "properties": {
+            "ffmpeg": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "ffprobe": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            }
+          },
+          "additionalProperties": false
+        },
+        "init": {
+          "type": "object",
+          "description": "How `rostrum init <folder>` turns files into talks.",
+          "properties": {
+            "partPattern": {
+              "type": "string",
+              "default": "(?i)[-_ ]part\\s*(\\d+)$",
+              "description": "On the file stem: files whose stems match are parts of one talk, in the order of capture group 1 (the part number, required); the rest of the stem names the talk. Every other file is a talk of its own."
+            },
+            "mediaExtensions": {
+              "$ref": "#/$defs/words",
+              "default": [
+                ".mp4",
+                ".mov",
+                ".mkv",
+                ".m4v",
+                ".webm",
+                ".avi"
+              ],
+              "description": "Files with these extensions are picked up from a folder. A source needs both video and audio."
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  }
+}

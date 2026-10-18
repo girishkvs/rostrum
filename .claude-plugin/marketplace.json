@@ -1,0 +1,18 @@
+{
+  "name": "rostrum",
+  "owner": {
+    "name": "Girish Konda"
+  },
+  "metadata": {
+    "description": "rostrum for Claude Code and GitHub Copilot CLI: an MCP server and agent skill for cleaning up talk recordings."
+  },
+  "plugins": [
+    {
+      "name": "rostrum",
+      "source": "./",
+      "description": "MCP server and skill: find redos and dead air in talk recordings, review every cut, render with ffmpeg and verify.",
+      "category": "productivity",
+      "tags": ["video", "ffmpeg", "talks"]
+    }
+  ]
+}

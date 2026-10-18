@@ -1,0 +1,11 @@
+{
+  "name": "rostrum",
+  "version": "0.1.0",
+  "description": "Clean up talk recordings: find redos, retakes and dead air, review every cut, render with ffmpeg and verify.",
+  "mcpServers": {
+    "rostrum": {
+      "command": "uvx",
+      "args": ["rostrum@0.1.0", "mcp"]
+    }
+  }
+}

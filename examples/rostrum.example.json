@@ -1,0 +1,39 @@
+{
+  "$schema": "https://raw.githubusercontent.com/girishkvs/rostrum/main/src/rostrum/schema/rostrum.schema.json",
+  "event": "Example Conf 2026",
+  "defaults": {
+    "speech": { "engine": "faster-whisper", "model": "small.en", "language": "en", "hints": ["Kubernetes"], "workers": "auto" },
+    "cues": { "words": ["stop", "redo", "restart"], "level": "auto" },
+    "retakes": { "windowSec": 180, "level": "auto" },
+    "repeats": { "level": "propose" },
+    "pauses": { "maxSec": 2.0, "keepSec": 0.5, "level": "auto" },
+    "leads": { "inSec": 1.0, "outSec": 1.5 },
+    "offtalk": { "level": "propose" },
+    "fillers": { "words": ["um", "uh"], "level": "off" },
+    "unclear": { "level": "propose", "maxWordSec": 2.0, "minProbability": 0.35 },
+    "render": { "crf": 18, "preset": "veryfast", "audioFadeMs": 15, "loudnessLufs": -16, "name": "{speaker}-{title}" },
+    "verify": { "mode": "fast" }
+  },
+  "talks": [
+    {
+      "id": "keynote",
+      "speaker": "Jane Doe",
+      "title": "Keynote",
+      "sources": ["keynote-part1.mp4", "keynote-part2.mp4"],
+      "script": "keynote-script.md"
+    },
+    {
+      "id": "talk-2",
+      "speaker": "Sam Lee",
+      "title": "Shipping on Fridays",
+      "sources": ["talk2.mp4"],
+      "speech": { "engine": "command", "command": ["my-stt", "--json", "{audio}"] }
+    },
+    {
+      "id": "talk-3",
+      "sources": ["talk3.mp4"],
+      "speech": { "engine": "import", "transcripts": ["talk3.srt"] },
+      "pauses": { "maxSec": 3.0 }
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+# Cross-platform line-ending normalization.
+* text=auto
+
+# Python, config, docs and the review page are LF on every platform.
+*.py    text eol=lf
+*.json  text eol=lf
+*.toml  text eol=lf
+*.md    text eol=lf
+*.yml   text eol=lf
+*.html  text eol=lf
+*.sh    text eol=lf
+
+# Windows scripts use CRLF.
+*.ps1   text eol=crlf
+
+# Images are binary — never line-ending converted.
+*.png   binary
+*.jpg   binary
+*.gif   binary

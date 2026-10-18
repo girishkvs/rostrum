@@ -1,0 +1,19 @@
+{
+  "name": "rostrum",
+  "version": "0.1.0",
+  "description": "Clean up talk recordings with your agent: find redos and dead air, review every cut, render with ffmpeg and verify.",
+  "author": {
+    "name": "Girish Konda",
+    "url": "https://github.com/girishkvs"
+  },
+  "homepage": "https://github.com/girishkvs/rostrum",
+  "repository": "https://github.com/girishkvs/rostrum",
+  "license": "MIT",
+  "keywords": ["video", "ffmpeg", "talks", "speech-to-text", "mcp"],
+  "mcpServers": {
+    "rostrum": {
+      "command": "uvx",
+      "args": ["rostrum@0.1.0", "mcp"]
+    }
+  }
+}
