@@ -50,8 +50,8 @@ that your contribution is licensed under the MIT License.
 ## Releasing
 
 1. Bump the version in `pyproject.toml`, `src/rostrum/__init__.py`, `server.json` (both `version`
-   fields), and `.claude-plugin/plugin.json` and `gemini-extension.json` (`version` and the
-   `rostrum@X.Y.Z` pin). `tests/test_release_metadata.py` fails until they all agree.
+   fields), and `.claude-plugin/plugin.json`, `.github/plugin/plugin.json` and `gemini-extension.json`
+   (`version` and the `rostrum@X.Y.Z` pin). `tests/test_release_metadata.py` fails until they all agree.
 2. Add the CHANGELOG entry, then commit and push to `main`.
 3. Once CI is green, publish the GitHub release `vX.Y.Z` from your own account. A release made with a
    workflow token doesn't start other workflows.

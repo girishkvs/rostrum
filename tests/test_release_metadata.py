@@ -30,10 +30,14 @@ class TestReleaseMetadata:
         assert len(server["description"]) <= 100
 
     def test_plugins_pin_this_version(self):
-        for name in (".claude-plugin/plugin.json", "gemini-extension.json"):
+        for name in (".claude-plugin/plugin.json", ".github/plugin/plugin.json", "gemini-extension.json"):
             manifest = self.read(name)
             assert manifest["version"] == self.version, name
             assert manifest["mcpServers"]["rostrum"]["args"] == [f"rostrum@{self.version}", "mcp"], name
+
+    def test_copilot_and_claude_manifests_match(self):
+        # Copilot CLI and the awesome-copilot intake read .github/plugin/; Claude Code reads .claude-plugin/.
+        assert self.read(".github/plugin/plugin.json") == self.read(".claude-plugin/plugin.json")
 
     def test_readme_keeps_the_registry_ownership_line(self):
         assert "mcp-name: io.github.girishkvs/rostrum" in (ROOT / "README.md").read_text(encoding="utf-8")
